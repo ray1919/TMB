@@ -43,38 +43,51 @@
 10.  Samstein R M, Lee C H, Shoushtari A N, et al. Tumor mutational load predicts survival after immunotherapy across multiple cancer types[J]. Nature genetics, 2019, 51(2): 202-206.
 
 11. Oh S, Geistlinger L, Ramos M, et al. Reliable analysis of clinical tumor-only whole exome sequencing data[J]. bioRxiv, 2019: 552711.
+
 ##  TMB.py
 
-    依据文献[1,8]也就是FoundationOne CDx (F1CDx)计算TMB，主要是要考虑同义突变，防止样本噪音
+依据文献[1,8]也就是FoundationOne CDx (F1CDx)计算TMB，主要是要考虑同义突变，防止样本噪音
 
 ### 识别癌症基因（oncogenes）与抑癌基因（TSG，suppressor genes）
 
-    根据文献[1,8]stop-gain mutations in tumor suppressor gene 应该去掉，以下两个数据库有基因的分类
+根据文献[1,8]stop-gain mutations in tumor suppressor gene 应该去掉，以下两个数据库有基因的分类
 
-    Oncokb database:    https://oncokb.org/cancerGenes
+Oncokb database:    https://oncokb.org/cancerGenes
 
-    cosmic database:    https://cancer.sanger.ac.uk/census#cl_search
+-   注册下载*cancerGeneList_20200212.tsv*
+-   `awk '$6 == "Yes"' cancerGeneList_20200212.tsv|cut -f1 > OncoKB.TSG.txt`
+
+cosmic database:    https://cancer.sanger.ac.uk/census#cl_search
+
+-   注册下载*cancer_gene_census.csv*
+-   `grep -w TSG cancer_gene_census.csv|cut -f1 -d, > COSMIC.TSG.txt`
+-   `sort COSMIC.TSG.txt OncoKB.TSG.txt|uniq > TSG.txt`
 
 ### 识别热点突变
 
-    这里的热点可以定义在cosmic数据库中已经被认定为somatic的突变，在cosmic数据库中CosmicMutantExport.tsv包含了这样的信息
+这里的热点可以定义在cosmic数据库中已经被认定为somatic的突变，在cosmic数据库中CosmicMutantExport.tsv包含了这样的信息
+
+-   `cut -f17,32 CosmicMutantExport.tsv.gz | zgrep "Confirmed somatic variant" |cut -f1 |sort -u > Confirmed_somatic_variant.MUTATION_ID.txt`
+-   `zgrep -f Confirmed_somatic_variant.MUTATION_ID.txt CosmicCodingMuts.vcf.gz | cut -f1-5 | sort -u > CosmicCodingMuts.Confirmed_somatic_variant.vcf`
 
 ### 识别dbsnp已知的germline和common 位点
 
-    下载最新的dbsnp
-    ftp://ftp.ncbi.nih.gov/snp/organisms/human_9606_b151_GRCh37p13/VCF/
-    这里的germline位点（SAO=1）和common位点（COMMON=1）,这里common SNP is one that has at least one 1000Genomes population with a MAF >= 1% and for which 2 or more founders contribute to that minor allele frequency
+下载最新的dbsnp
+ftp://ftp.ncbi.nih.gov/snp/organisms/human_9606_b151_GRCh37p13/VCF/
+这里的germline位点（SAO=1）和common位点（COMMON=1）,这里common SNP is one that has at least one 1000Genomes population with a MAF >= 1% and for which 2 or more founders contribute to that minor allele frequency
+
+-   `zgrep "SAO=1\|COMMON=1" 00-All.vcf.gz | cut -f1-5 | gzip -c > SAO1_COMMON1.vcf.gz`
 
 ### 人群频率
-    
-    依据文献[1]也就是FoundationOne CDx (F1CDx)计算TMB的方法是去掉了two or more counts in the ExAC database were not counted，这里我们选取的人群频率数据库阈值VAF大于1%的过滤掉
-    需要说明的是有些人群频率数据库还包含一些人群子库，建议在过滤的时候只要有1个子库大于1%就过滤掉该位点
-    
+
+依据文献[1]也就是FoundationOne CDx (F1CDx)计算TMB的方法是去掉了two or more counts in the ExAC database were not counted，这里我们选取的人群频率数据库阈值VAF大于1%的过滤掉
+需要说明的是有些人群频率数据库还包含一些人群子库，建议在过滤的时候只要有1个子库大于1%就过滤掉该位点
+
 ### SGZ[7]
 
-    这是FoundationOne CDx (F1CDx)针对自己的panel设计的针对单Tumor only来识别somatic和germline,由于没有公开数据的原因我们很难使用该软件。
-    但是有一点是清楚的，该软件主要还是针对VAF频率高于50%的位点是否是somatic位点，在相关文献和资料中提到，在肿瘤纯度大于50%的样本中是有可能存在的，这样的样本一般呈现的是TMB high。
-    所以我们这里建议如果在你的最终结果中去掉频率大于50%的位点，如果TMB仍大于20，则建议保留这些位点，如果小于20则建议去掉这些位点。特别说明本脚本计算的是TMB对应的变异位点数，需要最后再除以你的code区域（或者coding区域覆盖度大于50X的区域）
+这是FoundationOne CDx (F1CDx)针对自己的panel设计的针对单Tumor only来识别somatic和germline,由于没有公开数据的原因我们很难使用该软件。
+但是有一点是清楚的，该软件主要还是针对VAF频率高于50%的位点是否是somatic位点，在相关文献和资料中提到，在肿瘤纯度大于50%的样本中是有可能存在的，这样的样本一般呈现的是TMB high。
+所以我们这里建议如果在你的最终结果中去掉频率大于50%的位点，如果TMB仍大于20，则建议保留这些位点，如果小于20则建议去掉这些位点。特别说明本脚本计算的是TMB对应的变异位点数，需要最后再除以你的code区域（或者coding区域覆盖度大于50X的区域）
 
 
 

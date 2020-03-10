@@ -1,10 +1,13 @@
 import re
 import sys
 import subprocess
+import csv
+import re
+import gzip
 
-cosmic_genelist="Cancer_Gene_Census.tsv"##download cosmic https://cancer.sanger.ac.uk/census#cl_search
+cosmic_genelist="src/cancer_gene_census.csv"##download cosmic FTP
 OncoKB_Cancer_Gene_List="cancerGeneList.txt"##download https://oncokb.org/cancerGenes
-cosmic_anno="/data/Database/COSMIC/release_v88/CosmicMutantExport.tsv"##download cosmic
+cosmic_anno="src/CosmicMutantExport.c17c32.tsv.gz"##download cosmic `zcat CosmicMutantExport.tsv.gz |cut -f19,32 > src/CosmicMutantExport.c19c32.tsv`
 cosmic_vcf="/data/Database/COSMIC/release_v88/CosmicCodingMuts.vcf"##download cosmic
 annovar="/software/docker_tumor_base/Resource/Annovar/"
 dbsnp_germline="/data/Database/hg19/dbsnp/germline.vcf"#(SAO=1)
@@ -73,15 +76,14 @@ def run(vcf):
     ###########################step2:identify the tumor suppressor genes
     infile=open(cosmic_genelist,"r")
     TSG,num,name={},0,{}
-    for line in infile:
-        line=line.strip()
-        array=line.split("\t")
+    csv_r=csv.reader(infile)
+    for array in csv_r:
         num+=1
         if num==1:
             for i in range(len(array)):
                 name[array[i]]=i
         else:
-            if array[name['Role in Cancer']]=="TSG":
+            if re.search("TSG", array[name['Role in Cancer']]):
                 TSG[array[0]]=1
     infile.close()
     infile=open(OncoKB_Cancer_Gene_List,"r")
@@ -100,7 +102,7 @@ def run(vcf):
         num+=1
         if num==1:
             for i in range(len(array)):
-                if array[i]=="Mutation ID":
+                if array[i]=="GENOMIC_MUTATION_ID":
                     id=i
                 if array[i]=="Mutation somatic status":
                     status=i
@@ -150,6 +152,11 @@ def run(vcf):
         else:
             result="True"
             for i in AF:
+                # 依据文献[1]也就是FoundationOne CDx (F1CDx)计算TMB的方法是去掉了
+                # two or more counts in the ExAC database were not counted，这
+                # 里我们选取的人群频率数据库阈值VAF大于1%的过滤掉。
+                # 需要说明的是有些人群频率数据库还包含一些人群子库，建议在过滤的时候
+                # 只要有1个子库大于1%就过滤掉该位点。
                 if array[i]!="." and float(array[i])>=0.01:
                     result = "false"
             if array[6] in TSG and array[8]=="stopgain":
